@@ -2,21 +2,13 @@ class AvrGccAT12 < Formula
   desc "GNU compiler collection for AVR 8-bit and 32-bit Microcontrollers"
   homepage "https://gcc.gnu.org/"
 
-  url "https://ftp.gnu.org/gnu/gcc/gcc-12.2.0/gcc-12.2.0.tar.xz"
-  mirror "https://ftpmirror.gnu.org/gcc/gcc-12.2.0/gcc-12.2.0.tar.xz"
-  sha256 "e549cf9cf3594a00e27b6589d4322d70e0720cdd213f39beb4181e06926230ff"
+  url "https://ftp.gnu.org/gnu/gcc/gcc-12.4.0/gcc-12.4.0.tar.xz"
+  mirror "https://ftpmirror.gnu.org/gcc/gcc-12.4.0/gcc-12.4.0.tar.xz"
+  sha256 "704f652604ccbccb14bdabf3478c9511c89788b12cb3bbffded37341916a9175"
 
   license "GPL-3.0-or-later" => { with: "GCC-exception-3.1" }
-  revision 3
 
-  head "https://gcc.gnu.org/git/gcc.git", branch: "master"
-
-  bottle do
-    root_url "https://github.com/osx-cross/homebrew-avr/releases/download/avr-gcc@12-12.2.0_3"
-    sha256 arm64_sonoma: "ba0c8596203f126e5acb5795fe14180799b192920abd77c3c4f3962296e380dd"
-    sha256 ventura:      "b87620c6e9d5fc0dc5b39e0ed0342e012b3a88a44c801c3be4ae11d918c4382f"
-    sha256 monterey:     "484339713793087bd20767adb522fba3848423b3c407fd6ae8ae67e1afe63653"
-  end
+  head "https://gcc.gnu.org/git/gcc.git", branch: "releases/gcc-12"
 
   # The bottles are built on systems with the CLT installed, and do not work
   # out of the box on Xcode-only systems due to an incorrect sysroot.
@@ -26,13 +18,6 @@ class AvrGccAT12 < Formula
            "This is useful if you want to have multiple version of avr-gcc\n" \
            "installed on the same machine"
 
-  option "with-ATMega168pbSupport", "Add ATMega168pb Support to avr-gcc"
-
-  # automake & autoconf are needed to build from source
-  # with the ATMega168pbSupport option.
-  depends_on "autoconf" => :build
-  depends_on "automake" => :build
-
   depends_on "gmp"
   depends_on "isl"
   depends_on "libmpc"
@@ -41,35 +26,21 @@ class AvrGccAT12 < Formula
 
   uses_from_macos "zlib"
 
+  # GCC bootstraps itself, so it is OK to have an incompatible C++ stdlib
+  cxxstdlib_check :skip
+
+  resource "avr-libc" do
+    url "https://github.com/avrdudes/avr-libc/releases/download/avr-libc-2_2_1-release/avr-libc-2.2.1.tar.bz2"
+    sha256 "006a6306cbbc938c3bdb583ac54f93fe7d7c8cf97f9cde91f91c6fb0273ab465"
+  end
+
   # Branch from the Darwin maintainer of GCC, with a few generic fixes and
   # Apple Silicon support, located at https://github.com/iains/gcc-12-branch
   # macOS 13 with CLT 14.2 installed will fail due to missing support for
   # -nodefaultrpath in clang. The patch seems to not be needed however.
-  on_macos do
-    if Hardware::CPU.arm? && (MacOS.version < :ventura)
-      patch do
-        url "https://raw.githubusercontent.com/Homebrew/formula-patches/1d184289/gcc/gcc-12.2.0-arm.diff"
-        sha256 "a7843b5c6bf1401e40c20c72af69c8f6fc9754ae980bb4a5f0540220b3dcb62d"
-      end
-    end
-  end
-
-  # GCC bootstraps itself, so it is OK to have an incompatible C++ stdlib
-  cxxstdlib_check :skip
-
-  current_build = build
-
-  resource "avr-libc" do
-    url "https://download.savannah.gnu.org/releases/avr-libc/avr-libc-2.1.0.tar.bz2"
-    mirror "https://download-mirror.savannah.gnu.org/releases/avr-libc/avr-libc-2.1.0.tar.bz2"
-    sha256 "0b84cee5c08b5d5cba67c36125e5aaa85251bc9accfba5773bfa87bc34b654e8"
-
-    if current_build.with? "ATMega168pbSupport"
-      patch do
-        url "https://raw.githubusercontent.com/osx-cross/homebrew-avr/d2e2566b06b90355952ed996707a0a1a24673cd3/Patch/avr-libc-add-mcu-atmega168pb.patch"
-        sha256 "7a2bf2e11cfd9335e8e143eecb94480b4871e8e1ac54392c2ee2d89010b43711"
-      end
-    end
+  patch do
+    url "https://raw.githubusercontent.com/Homebrew/formula-patches/ca7047da/gcc/gcc-12.4.0.diff"
+    sha256 "c0e8e94fbf65a6ce13286e7f13beb5a1d84b182a610489026ce3e2420fc3d45c"
   end
 
   def version_suffix
@@ -136,8 +107,6 @@ class AvrGccAT12 < Formula
     rm_r(info)
     rm_r(man7)
 
-    current_build = build
-
     resource("avr-libc").stage do
       ENV.prepend_path "PATH", bin
 
@@ -147,14 +116,6 @@ class AvrGccAT12 < Formula
       ENV.delete "CC"
       ENV.delete "CXX"
 
-      # avr-libc ships with outdated config.guess and config.sub scripts that
-      # do not support Apple ARM systems, causing the configure script to fail.
-      if OS.mac? && Hardware::CPU.arm?
-        ENV["ac_cv_build"] = "aarch64-apple-darwin"
-        puts "Forcing build system to aarch64-apple-darwin."
-      end
-
-      system "./bootstrap" if current_build.with? "ATMega168pbSupport"
       system "./configure", "--prefix=#{prefix}", "--host=avr"
       system "make", "install"
     end
