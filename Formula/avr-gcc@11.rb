@@ -2,21 +2,13 @@ class AvrGccAT11 < Formula
   desc "GNU compiler collection for AVR 8-bit and 32-bit Microcontrollers"
   homepage "https://gcc.gnu.org/"
 
-  url "https://ftp.gnu.org/gnu/gcc/gcc-11.3.0/gcc-11.3.0.tar.xz"
-  mirror "https://ftpmirror.gnu.org/gcc/gcc-11.3.0/gcc-11.3.0.tar.xz"
-  sha256 "b47cf2818691f5b1e21df2bb38c795fac2cfbd640ede2d0a5e1c89e338a3ac39"
+  url "https://ftp.gnu.org/gnu/gcc/gcc-11.5.0/gcc-11.5.0.tar.xz"
+  mirror "https://ftpmirror.gnu.org/gcc/gcc-11.5.0/gcc-11.5.0.tar.xz"
+  sha256 "a6e21868ead545cf87f0c01f84276e4b5281d672098591c1c896241f09363478"
 
   license "GPL-3.0-or-later" => { with: "GCC-exception-3.1" }
-  revision 2
 
   head "https://gcc.gnu.org/git/gcc.git", branch: "releases/gcc-11"
-
-  bottle do
-    root_url "https://github.com/osx-cross/homebrew-avr/releases/download/avr-gcc@11-11.3.0_2"
-    sha256 arm64_sonoma: "33ac86d868a1cb875e94a9d33a51269a75f94c7e54c106c549e58571e4f1ccef"
-    sha256 ventura:      "c368474e738577d7e0267d55b395ae0462cc2c09c5bea6438f4f63d7b0a774c2"
-    sha256 monterey:     "40318710c03906b08c7d68965d05faf9bc82e896723cc815cdcb2e443429d479"
-  end
 
   # The bottles are built on systems with the CLT installed, and do not work
   # out of the box on Xcode-only systems due to an incorrect sysroot.
@@ -25,13 +17,6 @@ class AvrGccAT11 < Formula
   keg_only "it might interfere with other version of avr-gcc.\n" \
            "This is useful if you want to have multiple version of avr-gcc\n" \
            "installed on the same machine"
-
-  option "with-ATMega168pbSupport", "Add ATMega168pb Support to avr-gcc"
-
-  # automake & autoconf are needed to build from source
-  # with the ATMega168pbSupport option.
-  depends_on "autoconf" => :build
-  depends_on "automake" => :build
 
   depends_on "gmp"
   depends_on "isl"
@@ -44,34 +29,22 @@ class AvrGccAT11 < Formula
   # GCC bootstraps itself, so it is OK to have an incompatible C++ stdlib
   cxxstdlib_check :skip
 
-  current_build = build
-
   resource "avr-libc" do
-    url "https://download.savannah.gnu.org/releases/avr-libc/avr-libc-2.0.0.tar.bz2"
-    mirror "https://download-mirror.savannah.gnu.org/releases/avr-libc/avr-libc-2.0.0.tar.bz2"
-    sha256 "b2dd7fd2eefd8d8646ef6a325f6f0665537e2f604ed02828ced748d49dc85b97"
-
-    if current_build.with? "ATMega168pbSupport"
-      patch do
-        url "https://raw.githubusercontent.com/osx-cross/homebrew-avr/d2e2566b06b90355952ed996707a0a1a24673cd3/Patch/avr-libc-add-mcu-atmega168pb.patch"
-        sha256 "7a2bf2e11cfd9335e8e143eecb94480b4871e8e1ac54392c2ee2d89010b43711"
-      end
-    end
+    url "https://github.com/avrdudes/avr-libc/releases/download/avr-libc-2_2_1-release/avr-libc-2.2.1.tar.bz2"
+    sha256 "006a6306cbbc938c3bdb583ac54f93fe7d7c8cf97f9cde91f91c6fb0273ab465"
   end
 
   # Branch from the Darwin maintainer of GCC, with a few generic fixes and
   # Apple Silicon support, located at https://github.com/iains/gcc-11-branch
-  if Hardware::CPU.arm?
-    patch do
-      url "https://raw.githubusercontent.com/Homebrew/formula-patches/22dec3fc/gcc/gcc-11.3.0-arm.diff"
-      sha256 "e02006b7ec917cc1390645d95735a6a866caed0dfe506d5bef742f7862cab218"
-    end
+  patch do
+    url "https://raw.githubusercontent.com/Homebrew/formula-patches/5c941992/gcc/gcc-11.5.0.diff"
+    sha256 "213b332bd09452e0cf081f874f32d028911fa871875f85b200b55c5b588ce193"
+  end
 
-    # Fix argument type mismatch error
-    patch do
-      url "https://raw.githubusercontent.com/osx-cross/homebrew-avr/e80a6b8/Patch/avr-gcc-11-fix-argument-type-mismatch.patch"
-      sha256 "79232a7dcbe71bcf4a0cc52e84cd509553d7b40b887771eec06ac340f5f502f6"
-    end
+  # Fix argument type mismatch error
+  patch do
+    url "https://raw.githubusercontent.com/osx-cross/homebrew-avr/e80a6b8/Patch/avr-gcc-11-fix-argument-type-mismatch.patch"
+    sha256 "79232a7dcbe71bcf4a0cc52e84cd509553d7b40b887771eec06ac340f5f502f6"
   end
 
   def version_suffix
@@ -138,8 +111,6 @@ class AvrGccAT11 < Formula
     rm_r(info)
     rm_r(man7)
 
-    current_build = build
-
     resource("avr-libc").stage do
       ENV.prepend_path "PATH", bin
 
@@ -149,14 +120,6 @@ class AvrGccAT11 < Formula
       ENV.delete "CC"
       ENV.delete "CXX"
 
-      # avr-libc ships with outdated config.guess and config.sub scripts that
-      # do not support Apple ARM systems, causing the configure script to fail.
-      if OS.mac? && Hardware::CPU.arm?
-        ENV["ac_cv_build"] = "aarch64-apple-darwin"
-        puts "Forcing build system to aarch64-apple-darwin."
-      end
-
-      system "./bootstrap" if current_build.with? "ATMega168pbSupport"
       system "./configure", "--prefix=#{prefix}", "--host=avr"
       system "make", "install"
     end
