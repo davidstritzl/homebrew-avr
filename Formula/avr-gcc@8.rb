@@ -49,6 +49,13 @@ class AvrGccAT8 < Formula
     sha256 "c4e9df9802772ddecb71aa675bb9403ad34c085d1359cb0e45b308ab6db551c6"
   end
 
+  # Backport upstream GCC commit to avoid an include poisoning issue in the
+  # libc++ version included in more recent macOS SDKs.
+  patch do
+    url "https://gcc.gnu.org/git/?p=gcc.git;a=patch;h=9970b576b7e4ae337af1268395ff221348c4b34a"
+    sha256 "aa67dbab17af5e8396c05d866bf871ac07c444fe9e684241710ecc6b5de90bfd"
+  end
+
   def install
     # GCC will suffer build errors if forced to use a particular linker.
     ENV.delete "LD"
