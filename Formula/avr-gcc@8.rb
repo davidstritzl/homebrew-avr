@@ -116,13 +116,6 @@ class AvrGccAT8 < Formula
       ENV.delete "CC"
       ENV.delete "CXX"
 
-      # avr-libc ships with outdated config.guess and config.sub scripts that
-      # do not support Apple ARM systems, causing the configure script to fail.
-      if OS.mac? && Hardware::CPU.arm?
-        ENV["ac_cv_build"] = "aarch64-apple-darwin"
-        puts "Forcing build system to aarch64-apple-darwin."
-      end
-
       system "./configure", "--prefix=#{prefix}", "--host=avr"
       system "make", "install"
     end
