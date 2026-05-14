@@ -1,26 +1,24 @@
 class AvrBinutils < Formula
   desc "GNU Binutils for the AVR target"
-  homepage "https://www.gnu.org/software/binutils"
+  homepage "https://www.gnu.org/software/binutils/"
+  url "https://ftpmirror.gnu.org/gnu/binutils/binutils-2.46.0.tar.bz2"
+  mirror "https://ftp.gnu.org/gnu/binutils/binutils-2.46.0.tar.bz2"
+  sha256 "0f3152632a2a9ce066f20963e9bb40af7cf85b9b6c409ed892fd0676e84ecd12"
+  license "GPL-3.0-or-later"
 
-  url "https://ftpmirror.gnu.org/binutils/binutils-2.45.1.tar.bz2"
-  mirror "https://ftp.gnu.org/gnu/binutils/binutils-2.45.1.tar.bz2"
-  sha256 "860daddec9085cb4011279136fc8ad29eb533e9446d7524af7f517dd18f00224"
-
-  license all_of: ["GPL-2.0-or-later", "GPL-3.0-or-later", "LGPL-2.0-or-later", "LGPL-3.0-only"]
-
-  head "https://sourceware.org/git/binutils-gdb.git", branch: "master"
-
-  bottle do
-    root_url "https://github.com/osx-cross/homebrew-avr/releases/download/avr-binutils-2.45.1"
-    sha256 arm64_tahoe:   "223e963bf99f65027f19d405f6acca9def33cb8c8f9004af7c8e64607f478a22"
-    sha256 arm64_sequoia: "6a97c87d6b29094b6daa0d0461bf380df338e9acd6ceed36b30b853106803290"
-    sha256 arm64_sonoma:  "50da705efd03dd6c96b98e8643955dc8715ab5bdc19e2778ef922eda59b71ccf"
+  livecheck do
+    formula "binutils"
   end
 
-  uses_from_macos "zlib"
+  depends_on "pkgconf" => :build
+  depends_on "zstd"
+
+  on_system :linux, macos: :ventura_or_newer do
+    depends_on "texinfo" => :build
+  end
 
   on_linux do
-    depends_on "gpatch" => :build
+    depends_on "zlib-ng-compat"
   end
 
   # Support for -C in avr-size
@@ -29,42 +27,35 @@ class AvrBinutils < Formula
     sha256 "7aed303887a8541feba008943d0331dc95dd90a309575f81b7a195650e4cba1e"
   end
 
-  # Fix symbol format elf32-avr unknown in gdb
-  patch do
-    url "https://raw.githubusercontent.com/osx-cross/homebrew-avr/18d50ba2a168a3b90a25c96e4bc4c053df77d7dc/Patch/avr-binutils-elf-bfd-gdb-fix.patch"
-    sha256 "7954f85d2e0f628c261bdd486df8e1a229bc5bacc6ea4a0da003913cb96543f6"
-  end
-
   def install
-    args = %W[
-      --prefix=#{prefix}
-      --libdir=#{lib}/avr
-      --infodir=#{info}
-      --mandir=#{man}
-
-      --target=avr
-
-      --disable-nls
-      --disable-debug
-      --disable-werror
-      --disable-dependency-tracking
-      --enable-deterministic-archives
-
-      --with-system-zlib
-    ]
-
-    mkdir "build" do
-      system "../configure", *args
-
-      system "make"
-      system "make", "install"
-    end
-
-    rm_r(info) # info files conflict with native binutils
+    target = "avr"
+    system "./configure", "--target=#{target}",
+                          "--prefix=#{prefix}",
+                          "--libdir=#{lib}/#{target}",
+                          "--infodir=#{info}/#{target}",
+                          "--mandir=#{man}",
+                          "--with-system-zlib",
+                          "--with-zstd",
+                          "--enable-multilib",
+                          "--disable-nls"
+    system "make"
+    system "make", "install"
   end
 
   test do
-    version_output = "GNU ld (GNU Binutils) 2.45.1\n"
-    assert_equal `avr-ld -v`, version_output
+    (testpath/"test-s.s").write <<~ASM
+      .section .text
+      .global _start
+      _start:
+          ldi r16, 0x20
+          out 0x04, r16
+          out 0x05, r16
+      1:  rjmp 1b
+    ASM
+
+    system bin/"avr-as", "-o", "test-s.o", "test-s.s"
+    assert_match "file format elf32-avr",
+                 shell_output("#{bin}/avr-objdump -a test-s.o")
+    assert_match "f()", shell_output("#{bin}/avr-c++filt _Z1fv")
   end
 end
